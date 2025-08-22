@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Análise Facial - MVP</title>
+  <script defer src="https://cdn.jsdelivr.net/npm/face-api.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; text-align: center; margin: 20px; }
+    #preview { max-width: 400px; border-radius: 10px; margin: 10px 0; }
+    #result { margin-top: 20px; font-size: 18px; font-weight: bold; }
+    .btn { padding: 10px 20px; border: none; border-radius: 6px; cursor: pointer; margin: 5px; }
+    .upload { background: #2196f3; color: white; }
+    .analyze { background: #4caf50; color: white; }
+  </style>
+</head>
+<body>
+  <h1>🔍 Análise Facial Básica</h1>
+  <input type="file" id="fileInput" class="btn upload" accept="image/*">
+  <br>
+  <img id="preview" />
+  <div id="result">Carregue uma foto para análise.</div>
+  
+  <script>
+    const fileInput = document.getElementById('fileInput');
+    const preview = document.getElementById('preview');
+    const result = document.getElementById('result');
+
+    // Carregar modelos do face-api
+    Promise.all([
+      faceapi.nets.tinyFaceDetector.loadFromUri('https://cdn.jsdelivr.net/npm/face-api.js/weights'),
+      faceapi.nets.faceLandmark68Net.loadFromUri('https://cdn.jsdelivr.net/npm/face-api.js/weights')
+    ]).then(() => {
+      result.innerText = "Modelos carregados. Envie sua foto.";
+    });
+
+    fileInput.addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      // Mostrar imagem
+      preview.src = URL.createObjectURL(file);
+      result.innerText = "Analisando...";
+
+      preview.onload = async () => {
+        const detection = await faceapi.detectSingleFace(preview, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks();
+
+        if (!detection) {
+          result.innerText = "Nenhum rosto detectado. Tente outra foto.";
+          return;
+        }
+
+        // Simulação simples de "análise da pele"
+        // Aqui usamos brilho médio como exemplo
+        const canvas = document.createElement("canvas");
+        const ctx = canvas.getContext("2d");
+        canvas.width = preview.width;
+        canvas.height = preview.height;
+        ctx.drawImage(preview, 0, 0, canvas.width, canvas.height);
+        
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        let total = 0;
+        for (let i = 0; i < imageData.data.length; i += 4) {
+          total += (imageData.data[i] + imageData.data[i+1] + imageData.data[i+2]) / 3;
+        }
+        const avgBrightness = total / (imageData.data.length / 4);
+
+        // Feedback básico
+        if (avgBrightness < 90) {
+          result.innerText = "Sua pele parece apresentar manchas escuras/oleosidade.";
+        } else if (avgBrightness > 180) {
+          result.innerText = "Sua pele parece mais clara/brilhante (pode indicar ressecamento).";
+        } else {
+          result.innerText = "Sua pele parece equilibrada.";
+        }
+      };
+    });
+  </script>
+</body>
+</html>
