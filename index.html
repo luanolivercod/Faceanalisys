@@ -2,36 +2,32 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
-  <title>Análise Facial - MVP</title>
-  <script defer src="https://cdn.jsdelivr.net/npm/face-api.js"></script>
+  <title>Análise Facial - Simples + PDF</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <style>
     body { font-family: Arial, sans-serif; text-align: center; margin: 20px; }
     #preview { max-width: 400px; border-radius: 10px; margin: 10px 0; }
-    #result { margin-top: 20px; font-size: 18px; font-weight: bold; }
+    #result { margin-top: 20px; font-size: 18px; font-weight: bold; white-space: pre-line; }
     .btn { padding: 10px 20px; border: none; border-radius: 6px; cursor: pointer; margin: 5px; }
     .upload { background: #2196f3; color: white; }
-    .analyze { background: #4caf50; color: white; }
+    .download { background: #4caf50; color: white; display: none; }
   </style>
 </head>
 <body>
-  <h1>🔍 Análise Facial Básica</h1>
+  <h1>🔍 Análise Básica da Pele</h1>
   <input type="file" id="fileInput" class="btn upload" accept="image/*">
   <br>
   <img id="preview" />
   <div id="result">Carregue uma foto para análise.</div>
+  <br>
+  <button id="downloadPDF" class="btn download">📄 Baixar Relatório em PDF</button>
   
   <script>
     const fileInput = document.getElementById('fileInput');
     const preview = document.getElementById('preview');
     const result = document.getElementById('result');
-
-    // Carregar modelos do face-api
-    Promise.all([
-      faceapi.nets.tinyFaceDetector.loadFromUri('https://cdn.jsdelivr.net/npm/face-api.js/weights'),
-      faceapi.nets.faceLandmark68Net.loadFromUri('https://cdn.jsdelivr.net/npm/face-api.js/weights')
-    ]).then(() => {
-      result.innerText = "Modelos carregados. Envie sua foto.";
-    });
+    const downloadBtn = document.getElementById('downloadPDF');
+    let lastFeedback = "";
 
     fileInput.addEventListener('change', async (e) => {
       const file = e.target.files[0];
@@ -40,17 +36,9 @@
       // Mostrar imagem
       preview.src = URL.createObjectURL(file);
       result.innerText = "Analisando...";
+      downloadBtn.style.display = "none";
 
       preview.onload = async () => {
-        const detection = await faceapi.detectSingleFace(preview, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks();
-
-        if (!detection) {
-          result.innerText = "Nenhum rosto detectado. Tente outra foto.";
-          return;
-        }
-
-        // Simulação simples de "análise da pele"
-        // Aqui usamos brilho médio como exemplo
         const canvas = document.createElement("canvas");
         const ctx = canvas.getContext("2d");
         canvas.width = preview.width;
@@ -58,21 +46,61 @@
         ctx.drawImage(preview, 0, 0, canvas.width, canvas.height);
         
         const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        let total = 0;
-        for (let i = 0; i < imageData.data.length; i += 4) {
-          total += (imageData.data[i] + imageData.data[i+1] + imageData.data[i+2]) / 3;
-        }
-        const avgBrightness = total / (imageData.data.length / 4);
+        let totalBrightness = 0;
+        let totalContrast = 0;
+        const pixels = imageData.data;
 
-        // Feedback básico
-        if (avgBrightness < 90) {
-          result.innerText = "Sua pele parece apresentar manchas escuras/oleosidade.";
-        } else if (avgBrightness > 180) {
-          result.innerText = "Sua pele parece mais clara/brilhante (pode indicar ressecamento).";
-        } else {
-          result.innerText = "Sua pele parece equilibrada.";
+        for (let i = 0; i < pixels.length; i += 4) {
+          const avg = (pixels[i] + pixels[i+1] + pixels[i+2]) / 3;
+          totalBrightness += avg;
+          totalContrast += Math.abs(pixels[i] - pixels[i+1]) + Math.abs(pixels[i+1] - pixels[i+2]);
         }
+
+        const avgBrightness = totalBrightness / (pixels.length / 4);
+        const avgContrast = totalContrast / (pixels.length / 4);
+
+        // Feedback simples
+        let feedback = "";
+        if (avgBrightness < 90) {
+          feedback += "🔴 Sua pele parece mais escura/oleosa.\n";
+        } else if (avgBrightness > 180) {
+          feedback += "⚠️ Sua pele parece ressecada/clara demais.\n";
+        } else {
+          feedback += "🟢 Sua pele parece equilibrada.\n";
+        }
+
+        if (avgContrast > 80) {
+          feedback += "Pode haver presença de manchas ou irregularidades.";
+        } else {
+          feedback += "Textura uniforme detectada.";
+        }
+
+        result.innerText = feedback;
+        lastFeedback = feedback;
+        downloadBtn.style.display = "inline-block";
       };
+    });
+
+    downloadBtn.addEventListener("click", () => {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF();
+
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(18);
+      doc.text("Relatório de Análise da Pele", 20, 20);
+
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(12);
+      doc.text("Resultado da Análise:", 20, 40);
+
+      doc.setFont("courier", "normal");
+      doc.text(lastFeedback, 20, 50);
+
+      doc.setFont("helvetica", "italic");
+      doc.setFontSize(10);
+      doc.text("Gerado automaticamente pela ferramenta de análise facial.", 20, 80);
+
+      doc.save("relatorio-pele.pdf");
     });
   </script>
 </body>
